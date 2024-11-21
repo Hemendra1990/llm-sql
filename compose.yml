@@ -1,0 +1,13 @@
+
+name: llm-with-sql
+
+services:
+  db:
+    image: bitnami/postgresql
+    container_name: sq
+    environment:
+      POSTGRESQL_USERNAME: postgres
+      POSTGRESQL_PASSWORD: postgres
+      POSTGRESQL_DATABASE: llmsql
+    ports:
+      - "5325:5432"

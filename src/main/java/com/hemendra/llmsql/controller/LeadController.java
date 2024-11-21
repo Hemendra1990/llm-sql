@@ -1,4 +1,4 @@
-package com.hemendra.llmsql;
+package com.hemendra.llmsql.controller;
 
 import com.hemendra.llmsql.service.LeadService;
 import org.springframework.beans.factory.annotation.Autowired;
