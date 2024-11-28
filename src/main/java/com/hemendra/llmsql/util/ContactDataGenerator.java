@@ -23,7 +23,7 @@ public class ContactDataGenerator {
             contact.setEmail(faker.internet().emailAddress());
             contact.setPhone(faker.phoneNumber().phoneNumber());
             Lead lead = new Lead();
-            lead.setId(random.nextLong(100)+1);
+            //lead.setId(random.nextLong(100)+1);
             contact.setLead(lead);
 
             contacts.add(contact);

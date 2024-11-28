@@ -1,3 +1,4 @@
+/*
 package com.hemendra.llmsql.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -68,7 +69,8 @@ public class OllamaAiService {
     public void init() {
         this.databaseSchemaJson = dbMetadataService.generateDatabaseSchemaJson();
 
-        /*try {
+        */
+/*try {
             String dbSchema14 = dbMetadataService.generate14DatabaseSchemaJson();
             FileOutputStream fileOutputStream = new FileOutputStream(new File("dbSchema14.json"));
             fileOutputStream.write(dbSchema14.getBytes(StandardCharsets.UTF_8));
@@ -81,7 +83,8 @@ public class OllamaAiService {
             throw new RuntimeException(e);
         } catch (IOException e) {
             throw new RuntimeException(e);
-        }*/
+        }*//*
+
         log.info("Database schema json: {}", databaseSchemaJson);
     }
 
@@ -128,3 +131,4 @@ public class OllamaAiService {
 
 
 }
+*/

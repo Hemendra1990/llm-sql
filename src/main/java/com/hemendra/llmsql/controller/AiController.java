@@ -1,18 +1,14 @@
 package com.hemendra.llmsql.controller;
 
-import com.hemendra.llmsql.dto.LLMResponseDto;
-import com.hemendra.llmsql.service.OllamaAiService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/ai")
 @RequiredArgsConstructor
 public class AiController {
-    private final OllamaAiService ollamaAiService;
+    /*private final OllamaAiService ollamaAiService;
 
     @GetMapping("/generate-sql")
     public String generateSql(@RequestParam String query) {
@@ -30,7 +26,7 @@ public class AiController {
     public LLMResponseDto generateSqlJsonResult(@RequestParam String query) {
         LLMResponseDto llmResponseDto = ollamaAiService.generateSqlJsonResult(query);
         return llmResponseDto;
-    }
+    }*/
 
 
 }

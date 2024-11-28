@@ -56,7 +56,7 @@ public class LeadService {
     public void saveLeadsInBatch(List<Lead> leads) {
         int count = 0;
         for (Lead lead : leads) {
-            entityManager.persist(lead);
+            entityManager.merge(lead);
             count++;
 
             if (count % BATCH_SIZE == 0) {
