@@ -1,6 +1,5 @@
 package com.hemendra.llmsql.controller;
 
-import com.hemendra.llmsql.entity.Contact;
 import com.hemendra.llmsql.service.ContactService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

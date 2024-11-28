@@ -1,6 +1,6 @@
 package com.hemendra.llmsql.service;
 
-import com.hemendra.llmsql.entity.Contact;
+import com.hemendra.llmsql.entity.gen.Contact;
 import com.hemendra.llmsql.repository.ContactRepository;
 import com.hemendra.llmsql.util.ContactDataGenerator;
 import jakarta.persistence.EntityManager;
@@ -17,7 +17,6 @@ import java.util.List;
 @Slf4j
 @Transactional
 public class ContactService {
-    private final ContactRepository contactRepository;
     private final ContactDataGenerator contactDataGenerator;
 
     @Autowired
