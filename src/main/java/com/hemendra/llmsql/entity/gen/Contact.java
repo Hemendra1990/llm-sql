@@ -10,7 +10,7 @@ import java.time.OffsetDateTime;
 @Getter
 @Setter
 @Entity
-@Table(name = "contact", schema = "kevit")
+@Table(name = "contact", schema = "client1")
 public class Contact {
     @Id
     @Tsid

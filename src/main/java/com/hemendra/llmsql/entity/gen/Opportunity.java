@@ -10,7 +10,7 @@ import java.time.OffsetDateTime;
 @Getter
 @Setter
 @Entity
-@Table(name = "opportunity", schema = "kevit")
+@Table(name = "opportunity", schema = "client1")
 public class Opportunity {
     @Id
     @Tsid
@@ -67,6 +67,10 @@ public class Opportunity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "campaign_id")
     private Campaign campaign;
+
+    @ManyToOne
+    @JoinColumn(name = "account_id")
+    private Account account;
 
     @Column(name = "is_active")
     private Boolean isActive;
