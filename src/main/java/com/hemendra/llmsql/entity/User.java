@@ -2,14 +2,17 @@ package com.hemendra.llmsql.entity;
 
 import io.hypersistence.utils.hibernate.id.Tsid;
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.*;
 
 import java.time.OffsetDateTime;
 import java.util.Set;
 
 @Entity
 @Table(name = "crm_user", schema = "client1")
-@Data
+@Getter
+@Setter
+@ToString(exclude = {"reportsTo", "delegatedApproverId"})
+@EqualsAndHashCode(exclude = {"reportsTo", "delegatedApproverId"})
 public class User {
     @Id
     @Tsid
@@ -132,6 +135,7 @@ public class User {
             joinColumns = @JoinColumn(name = "reporter_id"),
             inverseJoinColumns = @JoinColumn(name = "reported_to_id"))
     private Set<User> reportsTo;
+
     @Column(name = "is_active")
     private Boolean isActive;
 

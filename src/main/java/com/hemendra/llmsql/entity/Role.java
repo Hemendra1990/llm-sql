@@ -2,13 +2,16 @@ package com.hemendra.llmsql.entity;
 
 import io.hypersistence.utils.hibernate.id.Tsid;
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.*;
 
 import java.util.List;
 
 @Entity
 @Table(name = "role", schema = "client1")
-@Data
+@Getter
+@Setter
+@ToString(exclude = {"parentRole", "subRoles"})
+@EqualsAndHashCode(exclude = {"parentRole", "subRoles"})
 public class Role {
     @Id
     @Tsid
