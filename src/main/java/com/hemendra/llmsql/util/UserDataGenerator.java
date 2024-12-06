@@ -125,7 +125,7 @@ public class UserDataGenerator {
         user.setEmail(generateEmail(user.getUsername()));
         user.setPersonalEmail(user.getUsername() + "@gmail.com");
         user.setNickName(firstName);
-        user.setPassword(faker.internet().password(8, 20, true, true));
+        user.setPassword("test123");
 
         // Personal details
         populatePersonalDetails(user);

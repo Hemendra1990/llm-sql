@@ -114,7 +114,7 @@ public class UserService {
     }
 
     @Transactional
-    private void saveRolesWithHierarchy(List<Role> roles) {
+    public void saveRolesWithHierarchy(List<Role> roles) {
         // First, save the admin role (parent)
         Role adminRole = roles.get(0);
         adminRole.setId(null); // Clear any pre-set ID
@@ -134,7 +134,7 @@ public class UserService {
     }
 
     @Transactional
-    private <T> void saveEntitiesInBatch(List<T> entities, String entityType) {
+    public  <T> void saveEntitiesInBatch(List<T> entities, String entityType) {
         int count = 0;
         for (T entity : entities) {
             // Clear any pre-set ID using reflection
@@ -166,7 +166,7 @@ public class UserService {
     }
 
     @Transactional
-    private void saveUsersInBatch(List<User> users) {
+    public void saveUsersInBatch(List<User> users) {
         int count = 0;
         for (User user : users) {
             user.setId(null); // Clear any pre-set ID

@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "em_employee_info", schema = "client1")
+@Table(name = "em_employee_info")
 @Getter
 @Setter
 public class EmployeeInfo {

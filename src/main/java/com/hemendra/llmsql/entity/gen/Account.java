@@ -13,7 +13,7 @@ import java.time.OffsetDateTime;
 @Getter
 @Setter
 @Entity
-@Table(name = "accounts", schema = "client1")
+@Table(name = "accounts")
 public class Account {
     @Id
     @Tsid
