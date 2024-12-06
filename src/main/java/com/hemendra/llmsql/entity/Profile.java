@@ -4,10 +4,11 @@ import io.hypersistence.utils.hibernate.id.Tsid;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 @Entity
-@Table(name = "profile", schema = "client1")
+@Table(name = "profile")
 @Data
 public class Profile {
     @Id
@@ -20,4 +21,8 @@ public class Profile {
 
     private String description;
     private Boolean isAdministrator;
+
+    @ManyToOne
+    @JoinColumn(name = "organisation_id", referencedColumnName = "id")
+    private Organisation organisation;
 }

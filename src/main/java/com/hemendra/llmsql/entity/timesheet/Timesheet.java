@@ -12,7 +12,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 @Entity
-@Table(name = "ts_timesheet", schema = "client1")
+@Table(name = "ts_timesheet")
 @Getter
 @Setter
 public class Timesheet extends BaseEntity {

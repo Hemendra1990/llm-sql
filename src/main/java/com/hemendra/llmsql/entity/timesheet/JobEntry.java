@@ -9,7 +9,7 @@ import lombok.Setter;
 import java.time.OffsetDateTime;
 
 @Entity
-@Table(name = "ts_job_entry", schema = "client1")
+@Table(name = "ts_job_entry")
 @Getter
 @Setter
 public class JobEntry extends BaseEntity {

@@ -8,7 +8,7 @@ import java.time.OffsetDateTime;
 import java.util.Set;
 
 @Entity
-@Table(name = "crm_user", schema = "client1")
+@Table(name = "crm_user")
 @Getter
 @Setter
 @ToString(exclude = {"reportsTo", "delegatedApproverId"})
@@ -156,7 +156,22 @@ public class User {
     @JoinColumn(name = "designation_id", referencedColumnName = "id")
     private Designation designation;
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "organisation_id", referencedColumnName = "id")
+    private Organisation organisation;
+
     private String employeeCode;
     private String kcUserId;
 
+    @Column(name = "created_by", updatable = false)
+    private String createdBy;
+
+    @Column(name = "updated_by")
+    private String updatedBy;
+
+    @Column(name = "created_on", updatable = false)
+    private OffsetDateTime createdOn;
+
+    @Column(name = "updated_on")
+    private OffsetDateTime updatedOn;
 }

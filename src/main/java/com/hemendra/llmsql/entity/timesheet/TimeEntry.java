@@ -10,7 +10,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 @Entity
-@Table(name = "ts_time_entry", schema = "client1")
+@Table(name = "ts_time_entry")
 @Getter
 @Setter
 public class TimeEntry extends BaseEntity {

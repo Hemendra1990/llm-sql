@@ -11,12 +11,14 @@ public class UserController {
     @Autowired
     private UserService userService;
 
+    //Call api to create user with passing count i.e. how many users will be created
     @PostMapping("/generate/{count}")
     public ResponseEntity<String> insertUser(@PathVariable Integer count) {
         String summary = userService.generateAndSaveUsers(count);
         return ResponseEntity.ok(summary);
     }
 
+    //Call first this api to set up reference data related to user
     @PostMapping("/setup-reference-data")
     public ResponseEntity<String> setupReferenceData() {
         String summary = userService.setupReferenceData();

@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "ts_job_category", schema = "client1")
+@Table(name = "ts_job_category")
 @Getter
 @Setter
 public class JobCategory extends BaseEntity {

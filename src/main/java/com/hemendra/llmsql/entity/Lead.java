@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 
 @Entity
-@Table(name = "lead", schema = "client1")
+@Table(name = "lead")
 @Data
 public class Lead {
 

@@ -6,7 +6,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "ts_project_category", schema = "client1")
+@Table(name = "ts_project_category")
 @Getter
 @Setter
 public class ProjectCategory {

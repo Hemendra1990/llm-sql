@@ -5,7 +5,9 @@ import com.hemendra.llmsql.entity.*;
 import com.hemendra.llmsql.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -25,8 +27,14 @@ public class UserDataGenerator {
     private final DepartmentRepository departmentRepository;
     private final DesignationRepository designationRepository;
     private final UserRepository userRepository;
+    private final OrganisationRepository organisationRepository;
 
     private static final int MAX_ADMIN_USERS = 3;
+
+    private static final String DEFAULT_PASSWORD = "test";
+
+    @Value("${spring.datasource.schema}")
+    private String schemaName;
 
     public List<User> generateUsers(int count) {
         // Fetch all configuration data from repositories
@@ -35,12 +43,15 @@ public class UserDataGenerator {
         List<Department> departments = departmentRepository.findAll();
         List<Designation> designations = designationRepository.findAll();
 
+        Organisation organisation = organisationRepository.findByNameIgnoreCase(schemaName)
+                .orElseThrow(() -> new IllegalArgumentException("No organisation matching found for " + schemaName));
+
         // Validate configuration data
         validateConfigData(allRoles, allProfiles, departments, designations);
 
         // Get count of existing admin users
         Role adminRole = allRoles.stream()
-                .filter(role -> "ADMIN".equals(role.getRoleName()))
+                .filter(role -> "ADMIN".equalsIgnoreCase(role.getRoleName()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("Admin role not found"));
 
@@ -68,7 +79,7 @@ public class UserDataGenerator {
         if (remainingAdminSlots > 0) {
             int adminUsersToCreate = Math.min(remainingAdminSlots, count);
             for (int i = 0; i < adminUsersToCreate; i++) {
-                User adminUser = generateUser(adminRole, systemAdminProfile, departments, designations);
+                User adminUser = generateUser(adminRole, systemAdminProfile, departments, designations, organisation);
                 users.add(adminUser);
                 userMap.put(adminUser.getId(), adminUser);
                 count--; // Reduce the remaining count
@@ -84,7 +95,8 @@ public class UserDataGenerator {
                     nonAdminRoles.get(random.nextInt(nonAdminRoles.size())),
                     nonAdminProfiles.get(random.nextInt(nonAdminProfiles.size())),
                     departments,
-                    designations
+                    designations,
+                    organisation
             );
             users.add(user);
             userMap.put(user.getId(), user);
@@ -113,7 +125,7 @@ public class UserDataGenerator {
     }
 
     private User generateUser(Role role, Profile profile,
-                              List<Department> departments, List<Designation> designations) {
+                              List<Department> departments, List<Designation> designations, Organisation organisation) {
         User user = new User();
         String firstName = faker.name().firstName();
         String lastName = faker.name().lastName();
@@ -121,17 +133,18 @@ public class UserDataGenerator {
         // Basic information
         user.setFirstName(firstName);
         user.setLastName(lastName);
-        user.setUsername(generateUsername(firstName, lastName));
-        user.setEmail(generateEmail(user.getUsername()));
+        user.setUsername(generateUsername(firstName, lastName)+"@"+organisation.getName()+".com");
+        user.setEmail(generateUsername(firstName, lastName)+"@"+organisation.getName()+".com");
         user.setPersonalEmail(user.getUsername() + "@gmail.com");
         user.setNickName(firstName);
-        user.setPassword("test123");
+        //user.setPassword(DEFAULT_PASSWORD);
+        user.setPassword(BCrypt.hashpw(DEFAULT_PASSWORD, BCrypt.gensalt()));
 
         // Personal details
         populatePersonalDetails(user);
 
         // Professional details
-        populateProfessionalDetails(user);
+        populateProfessionalDetails(user, organisation);
 
         // System access flags
         populateSystemAccessFlags(user);
@@ -148,7 +161,6 @@ public class UserDataGenerator {
         user.setDepartment(departments.get(random.nextInt(departments.size())));
         user.setDesignation(designations.get(random.nextInt(designations.size())));
 
-        // ... rest of the user generation code ...
         return user;
     }
 
@@ -163,11 +175,11 @@ public class UserDataGenerator {
         user.setMaritalStatus(faker.options().option("Single", "Married", "Divorced", "Widowed"));
     }
 
-    private void populateProfessionalDetails(User user) {
+    private void populateProfessionalDetails(User user, Organisation organisation) {
         user.setEmploymentType(faker.options().option("Full-time", "Part-time", "Contract", "Intern"));
         user.setMobileNumber(faker.phoneNumber().cellPhone());
         user.setAlternateNumber(faker.phoneNumber().cellPhone());
-        user.setCompany(faker.company().name());
+        user.setCompany(organisation.getName());
         user.setDivision(faker.commerce().department());
     }
 
@@ -183,9 +195,9 @@ public class UserDataGenerator {
     }
 
     private void populateLocationPreferences(User user) {
-        user.setTimeZone(faker.options().option("UTC", "IST", "PST", "EST", "GMT"));
-        user.setLocale(faker.options().option("en_US", "en_UK", "en_IN", "fr_FR", "de_DE"));
-        user.setLanguage(faker.options().option("English", "Hindi", "French", "German", "Spanish"));
+        user.setTimeZone(faker.options().option("IST"));
+        user.setLocale(faker.options().option("en_US"));
+        user.setLanguage(faker.options().option("English"));
     }
 
     private void populateDatesAndDetails(User user) {
@@ -200,7 +212,7 @@ public class UserDataGenerator {
         ));
 
         user.setEmployeeCode("EMP" + faker.numerify("######"));
-        user.setKcUserId("KC_" + UUID.randomUUID().toString());
+        //user.setKcUserId("KC_" + UUID.randomUUID().toString());
         user.setIsActive(true);
     }
 
@@ -248,9 +260,5 @@ public class UserDataGenerator {
     private String generateUsername(String firstName, String lastName) {
         return (firstName.toLowerCase() + "." + lastName.toLowerCase())
                 .replaceAll("[^a-zA-Z0-9.]", "");
-    }
-
-    private String generateEmail(String username) {
-        return username + "@" + faker.internet().domainName();
     }
 }

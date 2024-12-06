@@ -8,7 +8,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "ts_job", schema = "client1")
+@Table(name = "ts_job")
 @Getter
 @Setter
 public class TimesheetJob extends BaseEntity {

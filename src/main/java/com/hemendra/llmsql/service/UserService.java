@@ -1,17 +1,25 @@
 package com.hemendra.llmsql.service;
 
 import com.hemendra.llmsql.entity.*;
+import com.hemendra.llmsql.keycloak.service.KeycloakService;
 import com.hemendra.llmsql.repository.*;
 import com.hemendra.llmsql.util.UserConfigDataGenerator;
 import com.hemendra.llmsql.util.UserDataGenerator;
+import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.lang.reflect.Field;
+import java.time.OffsetDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -25,11 +33,29 @@ public class UserService {
     private final DesignationRepository designationRepository;
     private final UserDataGenerator userDataGenerator;
     private final UserConfigDataGenerator configDataGenerator;
+    private final KeycloakService keycloakService;
+    private final OrganisationRepository organisationRepository;
+
+    @Value("${spring.datasource.schema}")
+    private String schemaName;
 
     @Autowired
     private EntityManager entityManager;
 
     private static final int BATCH_SIZE = 1000;
+
+    private Organisation organisation;
+    private User superAdmin;
+
+    @PostConstruct
+    public void init() {
+        this.organisation = organisationRepository.findByNameIgnoreCase(schemaName)
+                .orElseThrow(() -> new IllegalStateException("Organisation not found"));
+        this.superAdmin = userRepository.findFirstByRole_RoleName("Super Admin")
+                .orElseThrow(() -> new IllegalStateException("Super Admin user not found"));
+        log.info("Initialized UserService with organisation: {} and superAdmin: {}",
+                organisation.getName(), superAdmin.getUsername());
+    }
 
     public String generateAndSaveUsers(Integer count) {
         long start = System.currentTimeMillis();
@@ -45,8 +71,12 @@ public class UserService {
         long generationEnd = System.currentTimeMillis();
         log.info("Generated {} users in {} ms", users.size(), generationEnd - start);
 
+        // Filter out users with existing usernames
+        List<User> uniqueUsers = filterUniqueUsers(users);
+        log.info("{} unique users after filtering existing usernames", uniqueUsers.size());
+
         // Save users
-        saveUsersInBatch(users);
+        saveUsersWithKeycloak(uniqueUsers);
 
         long end = System.currentTimeMillis();
         String summary = String.format("""
@@ -64,6 +94,16 @@ public class UserService {
         return summary;
     }
 
+    private List<User> filterUniqueUsers(List<User> users) {
+        Set<String> existingUsernames = new HashSet<>(
+                userRepository.findAllUsernames()
+        );
+
+        return users.stream()
+                .filter(user -> !existingUsernames.contains(user.getUsername()))
+                .collect(Collectors.toList());
+    }
+
     @Transactional
     public String setupReferenceData() {
         long start = System.currentTimeMillis();
@@ -74,7 +114,7 @@ public class UserService {
         List<Department> departments = configDataGenerator.generatePredefinedDepartments();
         List<Designation> designations = configDataGenerator.generatePredefinedDesignations();
 
-        // Save roles with hierarchy
+        // Save roles with hierarchy and create in Keycloak
         saveRolesWithHierarchy(roles);
 
         // Save profiles
@@ -115,22 +155,28 @@ public class UserService {
 
     @Transactional
     public void saveRolesWithHierarchy(List<Role> roles) {
-        // First, save the admin role (parent)
-        Role adminRole = roles.get(0);
-        adminRole.setId(null); // Clear any pre-set ID
-        adminRole = roleRepository.save(adminRole);
-        log.info("Admin role saved with ID: {}", adminRole.getId());
-
-        // Then save other roles with the saved admin role as parent
-        for (int i = 1; i < roles.size(); i++) {
-            Role role = roles.get(i);
-            role.setId(null); // Clear any pre-set ID
-            role.setParentRole(adminRole);
-            Role savedRole = roleRepository.save(role);
-            log.debug("Role saved: {} with ID: {}", savedRole.getLabel(), savedRole.getId());
+        if (roles == null || roles.isEmpty()) {
+            log.info("No roles to save, all roles might already exist");
+            return;
         }
 
-        log.info("All roles saved successfully with proper hierarchy");
+        try {
+            for (Role role : roles) {
+                populateCommonFields(role);
+                Role savedRole = roleRepository.save(role);
+                // Create in Keycloak
+                keycloakService.createKcRealmRole(savedRole, schemaName);
+                log.debug("Role saved: {} with ID: {}, Parent Role: {}",
+                        savedRole.getLabel(),
+                        savedRole.getId(),
+                        savedRole.getParentRole() != null ? savedRole.getParentRole().getRoleName() : "None");
+            }
+
+            log.info("All {} roles saved successfully with proper hierarchy", roles.size());
+        } catch (Exception e) {
+            log.error("Error while saving roles: {}", e.getMessage());
+            throw e;
+        }
     }
 
     @Transactional
@@ -150,6 +196,9 @@ public class UserService {
                 }
             }
 
+            // Populate common fields
+            populateCommonFields(entity);
+
             entityManager.persist(entity);
             count++;
 
@@ -166,23 +215,91 @@ public class UserService {
     }
 
     @Transactional
-    public void saveUsersInBatch(List<User> users) {
+    private void saveUsersWithKeycloak(List<User> users) {
         int count = 0;
         for (User user : users) {
-            user.setId(null); // Clear any pre-set ID
-            entityManager.persist(user);
-            count++;
+            try {
+                user.setId(null); // Clear any pre-set ID
+                populateCommonFields(user);
+                entityManager.persist(user);
+                count++;
 
-            if (count % BATCH_SIZE == 0) {
-                entityManager.flush();
-                entityManager.clear();
-                log.info("Batch of {} users saved", BATCH_SIZE);
+                // Create user in Keycloak
+                keycloakService.createKcUser(user, schemaName);
+
+                if (count % BATCH_SIZE == 0) {
+                    entityManager.flush();
+                    entityManager.clear();
+                    log.info("Batch of {} users saved", BATCH_SIZE);
+                }
+            } catch (Exception e) {
+                log.error("Failed to create user {}: {}", user.getUsername(), e.getMessage());
             }
         }
 
-        // Flush remaining entities
         entityManager.flush();
         entityManager.clear();
         log.info("Total {} users saved", count);
+    }
+
+    /**
+     * Helper method to populate audit and organization fields for any entity
+     */
+    private <T> void populateCommonFields(T entity) {
+        try {
+            Class<?> clazz = entity.getClass();
+
+            // Set organization for all entities
+            try {
+                Field orgField = clazz.getDeclaredField("organisation");
+                orgField.setAccessible(true);
+                orgField.set(entity, organisation);
+            } catch (NoSuchFieldException e) {
+                log.warn("Organisation field not found in {}", clazz.getSimpleName());
+            }
+
+            // For entities other than Role and Profile, set additional audit fields
+            if (!clazz.equals(Role.class) && !clazz.equals(Profile.class)) {
+                // Set created by
+                try {
+                    Field createdByField = clazz.getDeclaredField("createdBy");
+                    createdByField.setAccessible(true);
+                    createdByField.set(entity, superAdmin.getId());
+                } catch (NoSuchFieldException e) {
+                    log.warn("CreatedBy field not found in {}", clazz.getSimpleName());
+                }
+
+                // Set updated by
+                try {
+                    Field updatedByField = clazz.getDeclaredField("updatedBy");
+                    updatedByField.setAccessible(true);
+                    updatedByField.set(entity, superAdmin.getId());
+                } catch (NoSuchFieldException e) {
+                    log.warn("UpdatedBy field not found in {}", clazz.getSimpleName());
+                }
+
+                // Set created on
+                try {
+                    Field createdOnField = clazz.getDeclaredField("createdOn");
+                    createdOnField.setAccessible(true);
+                    createdOnField.set(entity, OffsetDateTime.now());
+                } catch (NoSuchFieldException e) {
+                    log.warn("CreatedOn field not found in {}", clazz.getSimpleName());
+                }
+
+                // Set updated on
+                try {
+                    Field updatedOnField = clazz.getDeclaredField("updatedOn");
+                    updatedOnField.setAccessible(true);
+                    updatedOnField.set(entity, OffsetDateTime.now());
+                } catch (NoSuchFieldException e) {
+                    log.warn("UpdatedOn field not found in {}", clazz.getSimpleName());
+                }
+            }
+
+        } catch (IllegalAccessException e) {
+            log.error("Error setting common fields: {}", e.getMessage());
+            throw new RuntimeException("Failed to set common fields", e);
+        }
     }
 }

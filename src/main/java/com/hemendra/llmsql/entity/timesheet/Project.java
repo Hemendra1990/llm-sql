@@ -13,7 +13,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 @Entity
-@Table(name = "ts_project", schema = "client1")
+@Table(name = "ts_project")
 @Getter
 @Setter
 @NoArgsConstructor
