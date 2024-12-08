@@ -120,14 +120,6 @@ public class TimesheetEntryGenerator {
         timesheet.setEndDate(endDate);
         timesheet.setSubmittedBy(submitter);
 
-        // Set approvers from user's project managers
-        /*List<User> projectManagers = projects.stream()
-                .map(Project::getManager)
-                .distinct()
-                .limit(2)
-                .collect(Collectors.toList());
-        timesheet.setApproverList(projectManagers);*/
-
         // Set initial status as Draft or Submitted
         timesheet.setStatus(random.nextBoolean() ? "Draft" : "Submitted");
 
@@ -264,21 +256,37 @@ public class TimesheetEntryGenerator {
         }
     }
     private void setApproversBasedOnTimeEntries(Timesheet timesheet) {
-        // Get unique projects from all job entries
-        List<Project> projectsWorkedOn = timesheet.getDailyTimeEntries().stream()
-                .flatMap(timeEntry -> timeEntry.getTaskEntries().stream())
-                .map(JobEntry::getProject)
-                .distinct()
-                .collect(Collectors.toList());
+        User submitter = timesheet.getSubmittedBy();
 
-        // Get managers of these projects as approvers
-        List<User> approvers = projectsWorkedOn.stream()
-                .map(Project::getManager)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
+        // Check if submitter is Manager or Admin
+        if ("MANAGER".equalsIgnoreCase(submitter.getRole().getRoleName()) ||
+                "ADMIN".equalsIgnoreCase(submitter.getRole().getRoleName())) {
+            // For Manager/Admin, approver is the user they report to
+            Set<User> reportsTo = submitter.getReportsTo();
+            if (reportsTo != null && !reportsTo.isEmpty()) {
+                timesheet.setApproverList(new ArrayList<>(reportsTo));
+            } else {
+                log.warn("Manager/Admin user {} has no reporting manager set", submitter.getUsername());
+                timesheet.setApproverList(new ArrayList<>());
+            }
+        } else {
+            // For normal users, get project managers as approvers
+            List<Project> projectsWorkedOn = timesheet.getDailyTimeEntries().stream()
+                    .flatMap(timeEntry -> timeEntry.getTaskEntries().stream())
+                    .map(JobEntry::getProject)
+                    .distinct()
+                    .collect(Collectors.toList());
 
-        timesheet.setApproverList(approvers);
+            // Get managers of these projects as approvers
+            List<User> approvers = projectsWorkedOn.stream()
+                    .map(Project::getManager)
+                    .filter(Objects::nonNull)
+                    .filter(manager -> !manager.equals(submitter)) // Ensure manager isn't the submitter
+                    .distinct()
+                    .collect(Collectors.toList());
+
+            timesheet.setApproverList(approvers);
+        }
     }
 
     private List<TimeEntry> generateWeeklyTimeEntries(Timesheet timesheet,
@@ -290,8 +298,8 @@ public class TimesheetEntryGenerator {
             // Skip weekends
             if (currentDate.getDayOfWeek() != DayOfWeek.SATURDAY &&
                     currentDate.getDayOfWeek() != DayOfWeek.SUNDAY) {
-                // 90% chance of having entries for a workday
-                if (random.nextDouble() <= 0.9) {
+                // 99% chance of having entries for a workday
+                if (random.nextDouble() <= 0.99) {
                     TimeEntry entry = generateTimeEntry(timesheet, currentDate, projects, jobCategories);
                     entries.add(entry);
                 }
@@ -305,22 +313,53 @@ public class TimesheetEntryGenerator {
     private TimeEntry generateTimeEntry(Timesheet timesheet, OffsetDateTime date,
                                         List<Project> projects, List<JobCategory> jobCategories) {
         TimeEntry entry = new TimeEntry();
-        //entry.setId(faker.numerify("TE###"));
         entry.setDate(date);
         entry.setStatus(timesheet.getStatus());
         entry.setTimesheet(timesheet);
 
-        // Generate 1-3 job entries per day
-        int numEntries = faker.number().numberBetween(1, 4);
         List<JobEntry> jobEntries = new ArrayList<>();
 
-        // Track remaining hours for the day
-        double remainingHours = 8.0; // Standard 8-hour workday
+        // Determine number of entries based on probability
+        // 95% chance for 1-2 entries, 5% chance for 3-4 entries
+        int numEntries;
+        if (random.nextDouble() < 0.95) {
+            numEntries = random.nextInt(2) + 1; // 1 or 2 entries (equal probability)
+        } else {
+            numEntries = random.nextInt(2) + 3; // 3 or 4 entries
+        }
 
-        for (int i = 0; i < numEntries && remainingHours > 0; i++) {
-            JobEntry jobEntry = generateJobEntry(entry, projects, jobCategories, remainingHours);
-            remainingHours -= jobEntry.getHoursSpent();
+        if (numEntries == 1) {
+            // Single entry for full 8 hours
+            JobEntry jobEntry = generateJobEntry(entry, projects, jobCategories, 8.0);
             jobEntries.add(jobEntry);
+        } else {
+            // For multiple entries, distribute 8 hours
+            double remainingHours = 8.0;
+            for (int i = 0; i < numEntries - 1; i++) {
+                // For earlier entries, generate larger chunks (3-6 hours for 2 entries, 2-4 hours for 3-4 entries)
+                double minHours = numEntries <= 2 ? 3.0 : 2.0;
+                double maxHours = numEntries <= 2 ? 6.0 : 4.0;
+
+                if (i == numEntries - 2) {
+                    // Ensure last iteration leaves at least 1 hour
+                    maxHours = Math.min(maxHours, remainingHours - 1.0);
+                }
+
+                double hours = Math.min(
+                        remainingHours - 1.0,
+                        faker.number().numberBetween((int)(minHours * 2), (int)(maxHours * 2)) / 2.0
+                );
+
+                JobEntry jobEntry = generateJobEntry(entry, projects, jobCategories, hours);
+                jobEntries.add(jobEntry);
+                remainingHours -= hours;
+            }
+
+            // Last entry gets remaining hours
+            if (remainingHours > 0) {
+                JobEntry lastJobEntry = generateJobEntry(entry, projects, jobCategories, remainingHours);
+                jobEntries.add(lastJobEntry);
+            }
         }
 
         entry.setTaskEntries(jobEntries);

@@ -49,63 +49,97 @@ public class UserDataGenerator {
         // Validate configuration data
         validateConfigData(allRoles, allProfiles, departments, designations);
 
-        // Get count of existing admin users
+        // Get specific profiles based on names
+        Profile adminProfile = allProfiles.stream()
+                .filter(profile -> "Admin Profile".equalsIgnoreCase(profile.getProfileName()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Admin Profile not found"));
+
+        Profile managerProfile = allProfiles.stream()
+                .filter(profile -> "Manager Profile".equalsIgnoreCase(profile.getProfileName()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Manager Profile not found"));
+
+        List<Profile> otherProfiles = allProfiles.stream()
+                .filter(profile -> !profile.getProfileName().equalsIgnoreCase("Admin Profile")
+                        && !profile.getProfileName().equalsIgnoreCase("Manager Profile"))
+                .toList();
+
+        // Get roles
         Role adminRole = allRoles.stream()
                 .filter(role -> "ADMIN".equalsIgnoreCase(role.getRoleName()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("Admin role not found"));
 
-        long existingAdminCount = userRepository.countByRole(adminRole);
-        int remainingAdminSlots = MAX_ADMIN_USERS - (int)existingAdminCount;
-
-        // Separate admin role and system admin profile
-        Profile systemAdminProfile = allProfiles.stream()
-                .filter(profile -> "System Administrator".equals(profile.getProfileName()))
+        Role managerRole = allRoles.stream()
+                .filter(role -> "MANAGER".equalsIgnoreCase(role.getRoleName()))
                 .findFirst()
-                .orElseThrow(() -> new IllegalStateException("System Administrator profile not found"));
+                .orElseThrow(() -> new IllegalStateException("Manager role not found"));
 
-        List<Profile> nonAdminProfiles = allProfiles.stream()
-                .filter(profile -> !"System Administrator".equals(profile.getProfileName()))
-                .toList();
+        // Get existing user counts
+        long existingUserCount = userRepository.count();
+        long existingAdminCount = userRepository.countByRole(adminRole);
+        long existingManagerCount = userRepository.countByRole(managerRole);
+        long existingOtherCount = existingUserCount - (existingAdminCount + existingManagerCount);
 
-        List<Role> nonAdminRoles = allRoles.stream()
-                .filter(role -> !"ADMIN".equals(role.getRoleName()))
-                .toList();
+        // Calculate total target count including existing users
+        int totalTargetCount = (int) (existingUserCount + count);
 
-        List<User> users = new ArrayList<>();
-        Map<String, User> userMap = new HashMap<>();
+        // Calculate target numbers based on total
+        int targetAdminCount = (int) Math.round(totalTargetCount * random.nextDouble(0.01, 0.05)); // 1-5%
+        int targetManagerCount = (int) Math.round(totalTargetCount * random.nextDouble(0.10, 0.20)); // 10-20%
 
-        // First create admin users if slots are available
-        if (remainingAdminSlots > 0) {
-            int adminUsersToCreate = Math.min(remainingAdminSlots, count);
-            for (int i = 0; i < adminUsersToCreate; i++) {
-                User adminUser = generateUser(adminRole, systemAdminProfile, departments, designations, organisation);
-                users.add(adminUser);
-                userMap.put(adminUser.getId(), adminUser);
-                count--; // Reduce the remaining count
-            }
-            log.info("Created {} admin users out of available {} slots", adminUsersToCreate, remainingAdminSlots);
-        } else {
-            log.info("Maximum admin users ({}) already exist, skipping admin user creation", MAX_ADMIN_USERS);
+        // Ensure admin count doesn't exceed maximum
+        targetAdminCount = Math.min(targetAdminCount, 50);
+
+        // Calculate how many new users of each type to create
+        int newAdminCount = Math.max(0, Math.min(targetAdminCount - (int)existingAdminCount, count));
+        int newManagerCount = Math.max(0, Math.min(targetManagerCount - (int)existingManagerCount, count - newAdminCount));
+        int newOtherCount = count - (newAdminCount + newManagerCount);
+
+        log.info("Current user distribution - Admin: {}, Manager: {}, Other: {}",
+                existingAdminCount, existingManagerCount, existingOtherCount);
+        log.info("New users to create - Admin: {}, Manager: {}, Other: {}",
+                newAdminCount, newManagerCount, newOtherCount);
+
+        List<User> newUsers = new ArrayList<>();
+
+        // Create new admin users
+        for (int i = 0; i < newAdminCount; i++) {
+            User adminUser = generateUser(adminRole, adminProfile, departments, designations, organisation);
+            newUsers.add(adminUser);
         }
 
-        // Create remaining non-admin users
-        for (int i = 0; i < count; i++) {
-            User user = generateUser(
-                    nonAdminRoles.get(random.nextInt(nonAdminRoles.size())),
-                    nonAdminProfiles.get(random.nextInt(nonAdminProfiles.size())),
-                    departments,
-                    designations,
-                    organisation
-            );
-            users.add(user);
-            userMap.put(user.getId(), user);
+        // Create new manager users
+        for (int i = 0; i < newManagerCount; i++) {
+            User managerUser = generateUser(managerRole,
+                    managerProfile,
+                    departments, designations, organisation);
+            newUsers.add(managerUser);
+        }
+
+        // Create new other users
+        Role defaultRole = allRoles.stream()
+                .filter(role -> !"ADMIN".equalsIgnoreCase(role.getRoleName()) && !"MANAGER".equalsIgnoreCase(role.getRoleName()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("No default role found"));
+
+        for (int i = 0; i < newOtherCount; i++) {
+            User user = generateUser(defaultRole,
+                    otherProfiles.get(random.nextInt(otherProfiles.size())),
+                    departments, designations, organisation);
+            newUsers.add(user);
         }
 
         // Setup reporting relationships
-        setupReportingRelationships(users);
+        setupReportingRelationships(newUsers);
 
-        return users;
+        log.info("Final user distribution - Admin: {}, Manager: {}, Other: {}",
+                existingAdminCount + newAdminCount,
+                existingManagerCount + newManagerCount,
+                existingOtherCount + newOtherCount);
+
+        return newUsers;
     }
 
     private void validateConfigData(List<Role> roles, List<Profile> profiles,
@@ -171,12 +205,12 @@ public class UserDataGenerator {
         user.setBloodGroup(faker.options().option("A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"));
         user.setEmergencyContact(faker.phoneNumber().cellPhone());
         user.setPhoneNumber(faker.phoneNumber().phoneNumber());
-        user.setGender(faker.options().option("Male", "Female", "Other"));
-        user.setMaritalStatus(faker.options().option("Single", "Married", "Divorced", "Widowed"));
+        user.setGender(faker.options().option("male", "female", "other"));
+        user.setMaritalStatus(faker.options().option("single", "married", "divorced", "widowed"));
     }
 
     private void populateProfessionalDetails(User user, Organisation organisation) {
-        user.setEmploymentType(faker.options().option("Full-time", "Part-time", "Contract", "Intern"));
+        user.setEmploymentType(faker.options().option("permanent", "outsourcing", "contractual"));
         user.setMobileNumber(faker.phoneNumber().cellPhone());
         user.setAlternateNumber(faker.phoneNumber().cellPhone());
         user.setCompany(organisation.getName());
@@ -216,45 +250,74 @@ public class UserDataGenerator {
         user.setIsActive(true);
     }
 
-    private void setupReportingRelationships(List<User> users) {
-        // Get all admin and manager users
-        List<User> adminUsers = users.stream()
-                .filter(user -> "ADMIN".equals(user.getRole().getRoleName()))
+    private void setupReportingRelationships(List<User> newUsers) {
+        // First, find the Super Admin
+        User superAdmin = userRepository.findFirstByRole_RoleName("Super Admin")
+                .orElseThrow(() -> new IllegalStateException("Super Admin not found"));
+
+        // Get all existing admin and manager users from database
+        List<User> existingAdmins = userRepository.findFirstByRole_RoleNameEqualsIgnoreCase("ADMIN");
+        List<User> existingManagers = userRepository.findFirstByRole_RoleNameEqualsIgnoreCase("MANAGER");
+
+        // Separate new users by role
+        List<User> newAdminUsers = newUsers.stream()
+                .filter(user -> "ADMIN".equalsIgnoreCase(user.getRole().getRoleName()))
                 .toList();
 
-        List<User> managerUsers = users.stream()
-                .filter(user -> "MANAGER".equals(user.getRole().getRoleName()))
+        List<User> newManagerUsers = newUsers.stream()
+                .filter(user -> "MANAGER".equalsIgnoreCase(user.getRole().getRoleName()))
                 .toList();
 
-        // First, set up managers reporting to admins
-        if (!adminUsers.isEmpty()) {
-            for (User manager : managerUsers) {
-                // Each manager reports to a random admin
-                User adminUser = adminUsers.get(random.nextInt(adminUsers.size()));
+        List<User> otherUsers = newUsers.stream()
+                .filter(user -> !("ADMIN".equalsIgnoreCase(user.getRole().getRoleName()) ||
+                        "MANAGER".equalsIgnoreCase(user.getRole().getRoleName())))
+                .toList();
+
+        // Combine existing and new users
+        List<User> allAdmins = new ArrayList<>(existingAdmins);
+        allAdmins.addAll(newAdminUsers);
+
+        List<User> allManagers = new ArrayList<>(existingManagers);
+        allManagers.addAll(newManagerUsers);
+
+        // Set up all admin users reporting to Super Admin
+        for (User admin : allAdmins) {
+            Set<User> reportsTo = new HashSet<>();
+            reportsTo.add(superAdmin);
+            admin.setReportsTo(reportsTo);
+            log.debug("Admin user {} reports to Super Admin", admin.getUsername());
+        }
+
+        // Set up all manager users reporting to admins
+        if (!allAdmins.isEmpty()) {
+            for (User manager : allManagers) {
+                // Distribute managers evenly among admins
+                User adminUser = allAdmins.get(allManagers.indexOf(manager) % allAdmins.size());
                 Set<User> reportsTo = new HashSet<>();
                 reportsTo.add(adminUser);
                 manager.setReportsTo(reportsTo);
+                log.debug("Manager {} reports to Admin {}", manager.getUsername(), adminUser.getUsername());
             }
+        } else {
+            log.warn("No admin users found to assign as managers' reporting managers");
         }
 
-        // Then, set up other users reporting to managers
-        List<User> otherUsers = users.stream()
-                .filter(user -> !("ADMIN".equals(user.getRole().getRoleName()) ||
-                        "MANAGER".equals(user.getRole().getRoleName())))
-                .toList();
-
-        if (!managerUsers.isEmpty()) {
+        // Set up other users reporting to managers
+        if (!allManagers.isEmpty()) {
             for (User user : otherUsers) {
-                // Each user reports to a random manager
-                User manager = managerUsers.get(random.nextInt(managerUsers.size()));
+                // Distribute users evenly among managers
+                User manager = allManagers.get(otherUsers.indexOf(user) % allManagers.size());
                 Set<User> reportsTo = new HashSet<>();
                 reportsTo.add(manager);
                 user.setReportsTo(reportsTo);
+                log.debug("User {} reports to Manager {}", user.getUsername(), manager.getUsername());
             }
+        } else {
+            log.warn("No manager users found to assign as users' reporting managers");
         }
 
-        log.info("Set up reporting relationships: {} managers reporting to admins, {} users reporting to managers",
-                managerUsers.size(), otherUsers.size());
+        log.info("Set up reporting relationships: {} total admins reporting to Super Admin, {} total managers reporting to admins, {} new users reporting to managers",
+                allAdmins.size(), allManagers.size(), otherUsers.size());
     }
 
     private String generateUsername(String firstName, String lastName) {

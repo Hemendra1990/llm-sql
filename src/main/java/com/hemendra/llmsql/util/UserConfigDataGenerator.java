@@ -92,7 +92,7 @@ public class UserConfigDataGenerator {
 
         List<Profile> profiles = new ArrayList<>();
         String[] profileNames = {
-            "Manager Profile", "Developer Profile",
+            "Admin Profile", "Manager Profile", "Developer Profile",
             "HR Profile", "Sales Profile", "Support Profile", "Guest Profile",
             "Analyst Profile", "Executive Profile", "Standard User"
         };

@@ -112,6 +112,9 @@ public class TimesheetConfigGenerator {
     // Generate Projects
     public List<Project> generateProjects(int count, List<ProjectCategory> categories) {
         initAdminUser();
+        List<User> managerUsers = userRepository.findFirstByRole_RoleNameEqualsIgnoreCase("MANAGER");
+        List<User> adminUsers = userRepository.findFirstByRole_RoleNameEqualsIgnoreCase("ADMIN");
+        List<User> superAdminUsers = userRepository.findFirstByRole_RoleNameEqualsIgnoreCase("Super Admin");
         List<User> allUsers = userRepository.findByRole_RoleNameNot("Super Admin");
         List<TimesheetJob> allJobs = timesheetJobRepository.findAllByStatusTrue();
 
@@ -139,8 +142,23 @@ public class TimesheetConfigGenerator {
                     project.setProjectCategory(categories.get(random.nextInt(categories.size())));
                     project.setIsSystemProject(faker.bool().bool());
 
-                    // Assign manager - randomly select from users
-                    project.setManager(allUsers.get(random.nextInt(allUsers.size())));
+                    double randomValue = random.nextDouble() * 100; // 0-100
+                    User projectManager;
+                    if (randomValue < 90 && !managerUsers.isEmpty()) {
+                        projectManager = managerUsers.get(random.nextInt(managerUsers.size()));
+                    } else if (randomValue < 97 && !adminUsers.isEmpty()) {
+                        projectManager = adminUsers.get(random.nextInt(adminUsers.size()));
+                    } else if (!superAdminUsers.isEmpty()) {
+                        projectManager = superAdminUsers.get(random.nextInt(superAdminUsers.size()));
+                    } else {
+                        List<User> availableManagers = new ArrayList<>();
+                        availableManagers.addAll(managerUsers);
+                        availableManagers.addAll(adminUsers);
+                        availableManagers.addAll(superAdminUsers);
+                        projectManager = availableManagers.get(random.nextInt(availableManagers.size()));
+                    }
+
+                    project.setManager(projectManager);
 
                     // Assign team members (3-7 random users)
                     int teamSize = faker.number().numberBetween(3, 8);

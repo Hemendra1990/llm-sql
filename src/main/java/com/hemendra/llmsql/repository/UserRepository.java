@@ -27,6 +27,8 @@ public interface UserRepository extends JpaRepository<User, String> {
 
     Optional<User> findFirstByRole_RoleName(String roleName);
 
+    List<User> findFirstByRole_RoleNameEqualsIgnoreCase(String roleName);
+
     List<User> findByRole_RoleNameNot(String roleName);
 
     long countByRole(Role role);
